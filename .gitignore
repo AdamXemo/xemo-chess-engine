@@ -1,0 +1,74 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# PyTorch
+*.pth
+*.pt
+
+# Experiments
+experiments/logs/*
+experiments/checkpoints/*
+experiments/results/*
+experiments/configs/*
+!experiments/logs/.gitkeep
+!experiments/checkpoints/.gitkeep
+!experiments/results/.gitkeep
+!experiments/configs/.gitkeep
+
+# Data files (too large for GitHub)
+data/*.csv
+data/*.pgn
+data/*.zip
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Tensorboard
+runs/
+
+# MacOS
+.DS_Store
+
+# Temporary files
+*.tmp
+*.log
+

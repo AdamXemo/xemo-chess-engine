@@ -1,0 +1,27 @@
+# Core deep learning
+torch>=2.0.0
+torchvision>=0.15.0
+
+# Chess library
+python-chess>=1.999
+
+# Data processing
+numpy>=1.24.0
+pandas>=2.0.0
+
+# Visualization (optional but recommended)
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Progress bars
+tqdm>=4.65.0
+
+# Testing
+pytest>=7.3.0
+
+# Tensorboard (optional)
+tensorboard>=2.13.0
+
+# Utilities
+pyyaml>=6.0
+
