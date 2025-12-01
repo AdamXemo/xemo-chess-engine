@@ -21,6 +21,13 @@ from .formatting import (
     format_time,
     format_number,
 )
+from .model_io import (
+    save_best_model,
+    load_best_model,
+    get_model_info,
+    list_best_models,
+    print_model_info,
+)
 
 __all__ = [
     # Logging
@@ -47,5 +54,11 @@ __all__ = [
     'print_separator',
     'format_time',
     'format_number',
+    # Model I/O
+    'save_best_model',
+    'load_best_model',
+    'get_model_info',
+    'list_best_models',
+    'print_model_info',
 ]
 

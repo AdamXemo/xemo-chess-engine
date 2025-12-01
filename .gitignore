@@ -38,9 +38,14 @@ ENV/
 .ipynb_checkpoints
 *.ipynb
 
-# PyTorch
+# PyTorch model files (kept globally to exclude checkpoints)
 *.pth
 *.pt
+
+# Best models folder (models and metadata excluded but folder kept)
+best_models/*.pth
+best_models/*.yaml
+!best_models/.gitkeep
 
 # Experiments
 experiments/logs/*

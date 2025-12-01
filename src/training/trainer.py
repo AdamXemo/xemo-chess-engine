@@ -499,4 +499,71 @@ class Trainer:
         
         # Close logger
         self.logger.close()
+    
+    def save_best_to_folder(
+        self,
+        model_type: str = 'cnn',
+        save_dir: str = 'best_models',
+        training_time: float = 0.0
+    ) -> tuple:
+        """
+        Save best model with metadata to dedicated folder.
+        
+        Args:
+            model_type: Type of model ('cnn', 'resnet', etc.)
+            save_dir: Directory to save best model
+            training_time: Total training time in seconds
+            
+        Returns:
+            Tuple of (model_path, yaml_path)
+        """
+        from ..utils.model_io import save_best_model
+        
+        # Get metrics
+        history = self.metrics_tracker.get_history()
+        best_epoch, best_val_loss = self.metrics_tracker.get_best_epoch(metric='mse', phase='val')
+        
+        # Get MAE for best epoch
+        best_val_mae = 0.0
+        if history['val']['mae']:
+            best_idx = history['epochs'].index(best_epoch) if best_epoch in history['epochs'] else -1
+            if best_idx >= 0 and best_idx < len(history['val']['mae']):
+                best_val_mae = history['val']['mae'][best_idx]
+        
+        # Get final metrics
+        final_train_loss = history['train']['mse'][-1] if history['train']['mse'] else 0.0
+        final_val_loss = history['val']['mse'][-1] if history['val']['mse'] else 0.0
+        
+        metrics = {
+            'best_epoch': best_epoch,
+            'best_val_loss': best_val_loss,
+            'best_val_mae': best_val_mae,
+            'final_train_loss': final_train_loss,
+            'final_val_loss': final_val_loss,
+            'epochs_trained': len(history['epochs']),
+        }
+        
+        # Dataset info
+        dataset_info = {
+            'train': len(self.train_loader.dataset),
+            'val': len(self.val_loader.dataset),
+            'test': 0,  # Will be updated if test loader provided
+        }
+        
+        # Save
+        model_path, yaml_path = save_best_model(
+            model=self.model,
+            model_type=model_type,
+            config=self.config,
+            metrics=metrics,
+            training_time=training_time,
+            dataset_info=dataset_info,
+            save_dir=save_dir,
+            device=self.device
+        )
+        
+        self.logger.success(f"Best model saved to: {model_path}")
+        self.logger.info(f"Metadata saved to: {yaml_path}")
+        
+        return model_path, yaml_path
 
