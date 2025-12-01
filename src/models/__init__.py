@@ -2,9 +2,13 @@
 Neural network model architectures for chess evaluation.
 """
 
-# Models will be imported here as they are implemented
-# from .cnn import SimpleCNN
-# from .resnet import ChessResNet
+from .base import ChessModel
+from .cnn import ChessCNN, ConvBlock, create_chess_cnn
 
-__all__ = []
+__all__ = [
+    'ChessModel',
+    'ChessCNN',
+    'ConvBlock',
+    'create_chess_cnn',
+]
 
