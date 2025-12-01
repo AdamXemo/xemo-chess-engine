@@ -18,22 +18,30 @@ import torch
 from torch.utils.data import DataLoader
 
 from src.data import ChessDataLoader, BitboardConverter
+from src.utils import (
+    print_header,
+    print_section,
+    print_success,
+    print_error,
+    print_info,
+    print_metric_table,
+)
 
 
 def test_csv_loading():
     """Test CSV loading functionality."""
-    print("=" * 60)
-    print("Testing CSV Loading")
-    print("=" * 60)
+    print_section("Testing CSV Loading")
     
     # Load a small sample
+    print_info("Loading sample data from CSV...")
     fen_list, eval_list = ChessDataLoader.load_from_csv(
         'data/chess_data.csv',
         max_samples=100
     )
     
-    print(f"\nLoaded {len(fen_list)} positions")
-    print(f"\nFirst 3 samples:")
+    print_success(f"Loaded {len(fen_list)} positions")
+    
+    print_info("First 3 samples:")
     for i in range(min(3, len(fen_list))):
         print(f"  {i+1}. FEN: {fen_list[i][:50]}...")
         print(f"     Eval: {eval_list[i]}")
@@ -41,50 +49,58 @@ def test_csv_loading():
     # Check evaluation range
     min_eval = min(eval_list)
     max_eval = max(eval_list)
-    print(f"\nEvaluation range: [{min_eval:.2f}, {max_eval:.2f}]")
+    stats = {
+        'Total Samples': len(fen_list),
+        'Min Evaluation': min_eval,
+        'Max Evaluation': max_eval,
+        'Eval Range': f"[{min_eval:.2f}, {max_eval:.2f}]"
+    }
+    print_metric_table(stats, title="Dataset Statistics")
     
     return fen_list, eval_list
 
 
 def test_bitboard_conversion(fen_list):
     """Test bitboard conversion for all representations."""
-    print("\n" + "=" * 60)
-    print("Testing Bitboard Conversion")
-    print("=" * 60)
+    print_section("Testing Bitboard Conversion")
     
     representations = ['simple', 'essential', 'full']
     expected_channels = {'simple': 13, 'essential': 19, 'full': 23}
     
     test_fen = fen_list[0]
-    print(f"\nTest FEN: {test_fen}")
+    print_info(f"Test FEN: {test_fen[:60]}...")
     
+    print()
     for rep in representations:
         bitboard = BitboardConverter.convert_fen(test_fen, representation=rep)
         expected = expected_channels[rep]
         
-        print(f"\n{rep.capitalize()} representation:")
-        print(f"  Shape: {bitboard.shape}")
-        print(f"  Expected channels: {expected}")
-        print(f"  Data type: {bitboard.dtype}")
-        print(f"  Value range: [{bitboard.min()}, {bitboard.max()}]")
-        print(f"  Non-zero elements: {np.count_nonzero(bitboard)}")
+        stats = {
+            'Representation': rep.capitalize(),
+            'Shape': str(bitboard.shape),
+            'Expected Channels': expected,
+            'Data Type': str(bitboard.dtype),
+            'Value Range': f"[{bitboard.min()}, {bitboard.max()}]",
+            'Non-zero Elements': np.count_nonzero(bitboard)
+        }
         
         assert bitboard.shape == (expected, 8, 8), \
             f"Expected shape ({expected}, 8, 8), got {bitboard.shape}"
         assert bitboard.dtype == np.uint8, \
             f"Expected dtype uint8, got {bitboard.dtype}"
         
-        print(f"  ✓ {rep.capitalize()} conversion passed!")
+        print_success(f"{rep.capitalize()} conversion passed!")
+        for key, val in stats.items():
+            print(f"  {key}: {val}")
+        print()
 
 
 def test_dataset_and_dataloader():
     """Test PyTorch Dataset and DataLoader integration."""
-    print("\n" + "=" * 60)
-    print("Testing PyTorch Dataset and DataLoader")
-    print("=" * 60)
+    print_section("Testing PyTorch Dataset and DataLoader")
     
     # Create datasets
-    print("\nCreating datasets with 1000 samples...")
+    print_info("Creating datasets with 1000 samples...")
     train_dataset, val_dataset, test_dataset = ChessDataLoader.create_datasets(
         csv_path='data/chess_data.csv',
         representation='full',
@@ -95,21 +111,29 @@ def test_dataset_and_dataloader():
         normalize_eval=False
     )
     
-    print(f"\nDataset sizes:")
-    print(f"  Train: {len(train_dataset)}")
-    print(f"  Validation: {len(val_dataset)}")
-    print(f"  Test: {len(test_dataset)}")
+    dataset_stats = {
+        'Train Samples': len(train_dataset),
+        'Validation Samples': len(val_dataset),
+        'Test Samples': len(test_dataset),
+        'Total Samples': len(train_dataset) + len(val_dataset) + len(test_dataset)
+    }
+    print_metric_table(dataset_stats, title="Dataset Split")
     
     # Test getting a single item
-    print("\nTesting single item retrieval:")
+    print_info("Testing single item retrieval...")
     bitboard, evaluation = train_dataset[0]
-    print(f"  Bitboard shape: {bitboard.shape}")
-    print(f"  Bitboard dtype: {bitboard.dtype}")
-    print(f"  Evaluation: {evaluation.item():.3f}")
-    print(f"  Evaluation shape: {evaluation.shape}")
+    item_stats = {
+        'Bitboard Shape': str(bitboard.shape),
+        'Bitboard Dtype': str(bitboard.dtype),
+        'Evaluation': f"{evaluation.item():.3f}",
+        'Evaluation Shape': str(evaluation.shape)
+    }
+    for key, val in item_stats.items():
+        print(f"  {key}: {val}")
     
     # Test DataLoader
-    print("\nTesting DataLoader:")
+    print()
+    print_info("Testing DataLoader...")
     train_loader = DataLoader(
         train_dataset,
         batch_size=32,
@@ -119,19 +143,24 @@ def test_dataset_and_dataloader():
     
     # Get one batch
     batch_bitboards, batch_evals = next(iter(train_loader))
-    print(f"  Batch bitboards shape: {batch_bitboards.shape}")
-    print(f"  Batch evaluations shape: {batch_evals.shape}")
-    print(f"  Batch size: {batch_bitboards.shape[0]}")
+    batch_stats = {
+        'Batch Bitboards Shape': str(batch_bitboards.shape),
+        'Batch Evaluations Shape': str(batch_evals.shape),
+        'Batch Size': batch_bitboards.shape[0]
+    }
     
     assert batch_bitboards.shape == (32, 23, 8, 8), \
         f"Expected batch shape (32, 23, 8, 8), got {batch_bitboards.shape}"
     assert batch_evals.shape == (32, 1), \
         f"Expected evaluation shape (32, 1), got {batch_evals.shape}"
     
-    print("\n  ✓ DataLoader integration passed!")
+    print_success("DataLoader integration passed!")
+    for key, val in batch_stats.items():
+        print(f"  {key}: {val}")
     
     # Test all representations
-    print("\nTesting all representations with DataLoader:")
+    print()
+    print_info("Testing all representations with DataLoader...")
     for rep in ['simple', 'essential', 'full']:
         channels = {'simple': 13, 'essential': 19, 'full': 23}[rep]
         
@@ -147,17 +176,16 @@ def test_dataset_and_dataloader():
         loader = DataLoader(dataset, batch_size=16, num_workers=0)
         batch_bb, batch_ev = next(iter(loader))
         
-        print(f"  {rep}: {batch_bb.shape} ✓")
+        print_success(f"{rep}: {batch_bb.shape}")
         assert batch_bb.shape[1] == channels
 
 
 def test_normalized_evaluations():
     """Test evaluation normalization."""
-    print("\n" + "=" * 60)
-    print("Testing Evaluation Normalization")
-    print("=" * 60)
+    print_section("Testing Evaluation Normalization")
     
     # Without normalization
+    print_info("Testing without normalization...")
     dataset_raw, _, _ = ChessDataLoader.create_datasets(
         csv_path='data/chess_data.csv',
         representation='simple',
@@ -166,6 +194,7 @@ def test_normalized_evaluations():
     )
     
     # With normalization
+    print_info("Testing with normalization...")
     dataset_norm, _, _ = ChessDataLoader.create_datasets(
         csv_path='data/chess_data.csv',
         representation='simple',
@@ -178,23 +207,25 @@ def test_normalized_evaluations():
     _, eval_raw = dataset_raw[0]
     _, eval_norm = dataset_norm[0]
     
-    print(f"\nRaw evaluation: {eval_raw.item():.3f}")
-    print(f"Normalized evaluation: {eval_norm.item():.3f}")
-    print(f"Expected normalized: {eval_raw.item() / 100.0:.3f}")
+    norm_stats = {
+        'Raw Evaluation': f"{eval_raw.item():.3f}",
+        'Normalized Evaluation': f"{eval_norm.item():.3f}",
+        'Expected Normalized': f"{eval_raw.item() / 100.0:.3f}",
+        'Difference': f"{abs(eval_norm.item() - eval_raw.item() / 100.0):.6f}"
+    }
+    print_metric_table(norm_stats, title="Normalization Test")
     
     assert abs(eval_norm.item() - eval_raw.item() / 100.0) < 1e-5, \
         "Normalization not working correctly"
     
-    print("\n  ✓ Normalization test passed!")
+    print_success("Normalization test passed!")
 
 
 if __name__ == '__main__':
     try:
         import numpy as np
         
-        print("\n" + "=" * 60)
-        print("Chess Neural Network - Data Loading Test Suite")
-        print("=" * 60)
+        print_header("Chess Neural Network - Data Loading Test Suite")
         
         # Run tests
         fen_list, eval_list = test_csv_loading()
@@ -202,14 +233,13 @@ if __name__ == '__main__':
         test_dataset_and_dataloader()
         test_normalized_evaluations()
         
-        print("\n" + "=" * 60)
-        print("All tests passed! ✓")
-        print("=" * 60)
-        print("\nData loading and preprocessing pipeline is working correctly.")
-        print("You can now proceed with model implementation and training.")
+        print()
+        print_header("All Tests Passed!")
+        print_success("Data loading and preprocessing pipeline is working correctly")
+        print_info("You can now proceed with model implementation and training")
         
     except Exception as e:
-        print(f"\n❌ Test failed with error: {e}")
+        print_error(f"Test failed with error: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)
