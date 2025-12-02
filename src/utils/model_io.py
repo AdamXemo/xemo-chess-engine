@@ -87,6 +87,10 @@ def save_best_model(
             'architecture': {
                 'input_channels': getattr(model, 'input_channels', None),
                 'base_channels': getattr(model, 'base_channels', None),
+                # ResNet parameters
+                'num_blocks': getattr(model, 'num_blocks', None),
+                'num_filters': getattr(model, 'num_filters', None),
+                'value_head_hidden': getattr(model, 'value_head_hidden', None),
             }
         },
         'training': {
@@ -122,10 +126,18 @@ def save_best_model(
     
     # Add model-specific config if available
     if hasattr(config, 'model'):
+        # CNN parameters
         if hasattr(config.model, 'dropout_conv'):
             metadata['model']['architecture']['dropout_conv'] = config.model.dropout_conv
         if hasattr(config.model, 'dropout_fc'):
             metadata['model']['architecture']['dropout_fc'] = config.model.dropout_fc
+        # ResNet parameters
+        if hasattr(config.model, 'num_blocks'):
+            metadata['model']['architecture']['num_blocks'] = config.model.num_blocks
+        if hasattr(config.model, 'num_filters'):
+            metadata['model']['architecture']['num_filters'] = config.model.num_filters
+        if hasattr(config.model, 'value_head_hidden'):
+            metadata['model']['architecture']['value_head_hidden'] = config.model.value_head_hidden
     
     # Save YAML metadata
     with open(yaml_path, 'w') as f:
@@ -136,7 +148,7 @@ def save_best_model(
 
 def load_best_model(
     model_path: str,
-    model_class: type,
+    model_class: type = None,
     device: str = 'cpu'
 ) -> tuple:
     """
@@ -144,12 +156,14 @@ def load_best_model(
     
     Args:
         model_path: Path to .pth file
-        model_class: Model class to instantiate
+        model_class: Model class to instantiate (auto-detected from metadata if None)
         device: Device to load model to
         
     Returns:
         Tuple of (model, metadata_dict)
     """
+    from ..models import ChessCNN, ChessResNet
+    
     model_path = Path(model_path)
     yaml_path = model_path.with_suffix('.yaml')
     
@@ -158,22 +172,68 @@ def load_best_model(
     if yaml_path.exists():
         metadata = get_model_info(str(yaml_path))
     
+    # Auto-detect model class from metadata if not provided
+    if model_class is None and metadata:
+        model_type = metadata.get('model', {}).get('type', 'cnn')
+        if model_type == 'resnet':
+            model_class = ChessResNet
+        else:
+            model_class = ChessCNN
+    
+    if model_class is None:
+        raise ValueError("Could not determine model class. Please provide model_class or ensure metadata exists.")
+    
     # Load model weights
-    checkpoint = torch.load(model_path, map_location=device)
+    checkpoint = torch.load(model_path, map_location=device, weights_only=False)
+    state_dict = checkpoint.get('model_state_dict', checkpoint)
     
     # Create model with correct parameters
     if metadata and 'model' in metadata:
         arch = metadata['model'].get('architecture', {})
-        model = model_class(
-            input_channels=arch.get('input_channels', 23),
-            base_channels=arch.get('base_channels', 64),
-            dropout_conv=arch.get('dropout_conv', 0.3),
-            dropout_fc=arch.get('dropout_fc', 0.5)
-        )
+        input_channels = arch.get('input_channels', 23)
+        
+        # Check if it's ResNet or CNN
+        if metadata['model'].get('type') == 'resnet':
+            # ResNet parameters - try to infer from state_dict if missing
+            num_blocks = arch.get('num_blocks')
+            num_filters = arch.get('num_filters')
+            
+            # Infer from state_dict if not in metadata
+            if num_blocks is None or num_filters is None:
+                # Count residual blocks from state_dict keys
+                max_block = -1
+                for key in state_dict.keys():
+                    if 'residual_blocks.' in key:
+                        try:
+                            block_num = int(key.split('residual_blocks.')[1].split('.')[0])
+                            max_block = max(max_block, block_num)
+                        except:
+                            pass
+                if max_block >= 0:
+                    num_blocks = max_block + 1
+                
+                # Infer filter count from initial_conv weight shape
+                if 'initial_conv.weight' in state_dict:
+                    num_filters = state_dict['initial_conv.weight'].shape[0]
+            
+            model = model_class(
+                input_channels=input_channels,
+                num_blocks=num_blocks or 10,
+                num_filters=num_filters or 128,
+                value_head_hidden=arch.get('value_head_hidden', 256)
+            )
+        else:
+            # CNN parameters
+            model = model_class(
+                input_channels=input_channels,
+                base_channels=arch.get('base_channels', 64),
+                dropout_conv=arch.get('dropout_conv', 0.3),
+                dropout_fc=arch.get('dropout_fc', 0.5)
+            )
     else:
         model = model_class()
     
-    model.load_state_dict(checkpoint['model_state_dict'])
+    model.load_state_dict(state_dict)
     model.to(device)
     model.eval()
     

@@ -14,7 +14,7 @@ from chess import Board
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from src.models import ChessCNN
+from src.models import ChessCNN, ChessResNet
 from src.data import BitboardConverter
 from src.utils import (
     load_best_model,
@@ -118,12 +118,13 @@ def main():
         print_metric_table(model_stats, title="Model Stats")
     print()
     
-    # Load model
+    # Load model (auto-detect type from metadata)
     print_info("Loading model...")
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     
     try:
-        model, metadata = load_best_model(model_path, ChessCNN, device=device)
+        # Auto-detect model type - load_best_model will handle it
+        model, metadata = load_best_model(model_path, model_class=None, device=device)
         print_success(f"Model loaded on {device}")
         
         if metadata:
@@ -136,6 +137,8 @@ def main():
             print_metric_table(model_info, title="Model Information")
     except Exception as e:
         print_error(f"Error loading model: {e}")
+        import traceback
+        traceback.print_exc()
         return
     
     print()
