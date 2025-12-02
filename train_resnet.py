@@ -38,8 +38,8 @@ def main():
     
     print_header("Chess ResNet Training")
     print_info(f"Experiment: {experiment_name}")
-    print_info(f"Target training time: 6-8 hours")
-    print_info(f"Architecture: 10 ResBlocks, 128 filters, AlphaZero value head")
+    print_info(f"Target training time: ~6 hours")
+    print_info(f"Architecture: 15 ResBlocks, 192 filters, AlphaZero value head")
     print()
     
     # Configuration for 6-8 hour training on RTX 4060
@@ -62,15 +62,15 @@ def main():
         
         model=ResNetConfig(
             input_channels=23,
-            num_blocks=10,      # 10 residual blocks
-            num_filters=128,    # 128 filters per layer
+            num_blocks=15,      # 15 residual blocks (deeper)
+            num_filters=192,    # 192 filters per layer (wider)
             value_head_hidden=256,  # AlphaZero style
         ),
         
         training=TrainingConfig(
             # Optimization (based on research)
-            batch_size=384,      # Larger batches for stability
-            num_epochs=20,       # Target 6-8 hours with early stopping
+            batch_size=256,      # Smaller batch for larger model (memory)
+            num_epochs=50,       # More epochs, early stopping will handle it
             learning_rate=0.001,
             weight_decay=0.0001,  # L2 regularization
             optimizer='adamw',    # AdamW recommended by research
@@ -99,7 +99,7 @@ def main():
             
             # Early stopping (longer patience for larger model)
             use_early_stopping=True,
-            early_stopping_patience=12,
+            early_stopping_patience=15,  # More patience for bigger model
             early_stopping_min_delta=0.0001,
             
             # Data loading
@@ -186,7 +186,7 @@ def main():
     
     batches_per_epoch = len(train_loader)
     print_info(f"Batches per epoch: {batches_per_epoch:,}")
-    print_info(f"Estimated time per epoch: ~15-20 min (RTX 4060)")
+    print_info(f"Estimated time per epoch: ~7-8 min (RTX 4060)")
     print()
     
     # Create model
