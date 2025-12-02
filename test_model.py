@@ -90,22 +90,88 @@ def evaluate_position(model: torch.nn.Module, fen: str, device: str = 'cpu') -> 
         return None
 
 
+def find_checkpoints():
+    """Find all available checkpoints."""
+    from pathlib import Path
+    
+    checkpoints = []
+    
+    # Check best_models folder
+    best_models = list_best_models('best_models')
+    for model_info in best_models:
+        checkpoints.append({
+            'path': model_info['model_path'],
+            'name': model_info['name'],
+            'type': 'best_model',
+            'val_loss': model_info.get('best_val_loss'),
+            'saved_at': model_info.get('saved_at'),
+        })
+    
+    # Check experiments/checkpoints folders
+    checkpoint_dir = Path('experiments/checkpoints')
+    if checkpoint_dir.exists():
+        for exp_dir in checkpoint_dir.iterdir():
+            if exp_dir.is_dir():
+                # Check for best_model and last_checkpoint
+                for checkpoint_name in ['best_model.pth', 'last_checkpoint.pth']:
+                    checkpoint_path = exp_dir / checkpoint_name
+                    if checkpoint_path.exists():
+                        checkpoints.append({
+                            'path': str(checkpoint_path),
+                            'name': f"{exp_dir.name}/{checkpoint_name.replace('.pth', '')}",
+                            'type': 'checkpoint',
+                            'val_loss': None,
+                            'saved_at': None,
+                        })
+    
+    return checkpoints
+
+
 def main():
     """Main interactive loop."""
     print_header("Chess Model Evaluator")
     
-    # Find best model
-    print_info("Looking for trained models...")
-    models = list_best_models('best_models')
+    # Find all available models/checkpoints
+    print_info("Looking for trained models and checkpoints...")
+    checkpoints = find_checkpoints()
     
-    if not models:
-        print_error("No trained models found in best_models/ folder!")
-        print_info("Please train a model first with: python train_cnn.py")
+    if not checkpoints:
+        print_error("No trained models found!")
+        print_info("Please train a model first with: python train_cnn.py or python train_resnet.py")
         return
     
-    # Use most recent model
-    best_model_info = models[0]
-    model_path = best_model_info['model_path']
+    # Show available checkpoints
+    print()
+    print_section("Available Models/Checkpoints")
+    for i, ckpt in enumerate(checkpoints):
+        val_info = f" (val_loss: {ckpt['val_loss']:.6f})" if ckpt['val_loss'] else ""
+        model_type = "CNN" if "cnn" in ckpt['name'].lower() else "ResNet" if "resnet" in ckpt['name'].lower() else "?"
+        print_info(f"{i+1}. [{model_type}] {ckpt['name']}{val_info}")
+    
+    # Prefer CNN models (they work correctly)
+    cnn_indices = [i for i, ckpt in enumerate(checkpoints) if "cnn" in ckpt['name'].lower()]
+    default_idx = cnn_indices[0] if cnn_indices else 0
+    
+    # Let user choose or use default
+    print()
+    try:
+        choice = input(f"Select model (1-{len(checkpoints)}, Enter for default [{default_idx+1}]): ").strip()
+        if choice:
+            idx = int(choice) - 1
+            if idx < 0 or idx >= len(checkpoints):
+                print_warning("Invalid selection, using default")
+                idx = default_idx
+        else:
+            idx = default_idx
+    except (ValueError, KeyboardInterrupt):
+        idx = default_idx
+    
+    selected = checkpoints[idx]
+    model_path = selected['path']
+    
+    # Warn about ResNet issues
+    if "resnet" in selected['name'].lower():
+        print_warning("Note: ResNet models may have evaluation issues. CNN models work correctly.")
     
     print_success(f"Found model: {best_model_info['name']}")
     
@@ -119,12 +185,63 @@ def main():
     print()
     
     # Load model (auto-detect type from metadata)
-    print_info("Loading model...")
+    print_info(f"Loading model: {selected['name']}")
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     
     try:
-        # Auto-detect model type - load_best_model will handle it
-        model, metadata = load_best_model(model_path, model_class=None, device=device)
+        # Try loading as best_model first (has YAML metadata)
+        if model_path.endswith('best_model.pth') or model_path.endswith('_best.pth'):
+            model, metadata = load_best_model(model_path, model_class=None, device=device)
+        else:
+            # Load from checkpoint file
+            checkpoint = torch.load(model_path, map_location=device, weights_only=False)
+            
+            # Try to get model type from checkpoint
+            model_type = checkpoint.get('model_type', 'resnet')
+            if model_type == 'resnet':
+                from src.models.resnet import ChessResNet
+                # Reload module to get latest version with clipping fix
+                import importlib
+                import src.models.resnet
+                importlib.reload(src.models.resnet)
+                from src.models.resnet import ChessResNet
+                
+                # Try to infer architecture from state_dict
+                state_dict = checkpoint.get('model_state_dict', checkpoint)
+                if 'initial_conv.weight' in state_dict:
+                    num_filters = state_dict['initial_conv.weight'].shape[0]
+                    # Count blocks
+                    max_block = -1
+                    for key in state_dict.keys():
+                        if 'residual_blocks.' in key:
+                            try:
+                                block_num = int(key.split('residual_blocks.')[1].split('.')[0])
+                                max_block = max(max_block, block_num)
+                            except:
+                                pass
+                    num_blocks = max_block + 1 if max_block >= 0 else 15
+                    
+                    model = ChessResNet(input_channels=23, num_blocks=num_blocks, num_filters=num_filters)
+                else:
+                    model = ChessResNet()
+                model.load_state_dict(state_dict)
+                
+                # Fix BatchNorm stats if corrupted
+                for module in model.modules():
+                    if isinstance(module, torch.nn.BatchNorm2d):
+                        if torch.abs(module.running_mean).max() > 1000 or module.running_var.max() > 1000000:
+                            module.running_mean.zero_()
+                            module.running_var.fill_(1.0)
+                            module.track_running_stats = False
+            else:
+                from src.models import ChessCNN
+                model = ChessCNN()
+                model.load_state_dict(checkpoint.get('model_state_dict', checkpoint))
+            
+            model.to(device)
+            model.eval()
+            metadata = checkpoint.get('config', {})
+        
         print_success(f"Model loaded on {device}")
         
         if metadata:

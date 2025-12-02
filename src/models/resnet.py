@@ -133,6 +133,8 @@ class ChessResNet(ChessModel):
         
         # Value head
         v = self.value_conv(x)      # (B, 1, 8, 8)
+        # Clip extreme values to prevent numerical instability
+        v = torch.clamp(v, min=-100, max=100)
         v = self.value_bn(v)
         v = self.value_relu(v)
         

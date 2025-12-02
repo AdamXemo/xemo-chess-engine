@@ -235,6 +235,21 @@ def load_best_model(
     
     model.load_state_dict(state_dict)
     model.to(device)
+    
+    # Fix corrupted BatchNorm running statistics
+    # Some models may have extreme BN stats that cause numerical issues
+    # Use batch statistics instead of running stats for corrupted layers
+    for name, module in model.named_modules():
+        if isinstance(module, torch.nn.BatchNorm2d):
+            # Check if running stats are corrupted (too large)
+            if torch.abs(module.running_mean).max() > 1000 or module.running_var.max() > 1000000:
+                # Reset to reasonable values
+                module.running_mean.zero_()
+                module.running_var.fill_(1.0)
+                # Force this BN to use batch stats (set track_running_stats=False temporarily)
+                # We'll use eval mode but with track_running_stats=False for these layers
+                module.track_running_stats = False
+    
     model.eval()
     
     return model, metadata
