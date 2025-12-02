@@ -35,22 +35,43 @@ class CNNConfig(ModelConfig):
 
 @dataclass
 class ResNetConfig(ModelConfig):
-    """Configuration for ResNet model (to be implemented)."""
+    """
+    Configuration for ResNet model.
+    
+    Based on AlphaZero architecture with residual blocks and
+    tanh output for bounded evaluation predictions.
+    """
     
     model_type: str = 'resnet'
     
     # Architecture parameters
     num_blocks: int = 10  # Number of residual blocks
-    num_channels: int = 256  # Channels in residual blocks
-    dropout: float = 0.3
+    num_filters: int = 128  # Filters per layer (constant throughout)
+    value_head_hidden: int = 256  # Hidden units in value head FC
     
     def __post_init__(self):
         """Update model_params dict."""
         self.model_params = {
             'num_blocks': self.num_blocks,
-            'num_channels': self.num_channels,
-            'dropout': self.dropout,
+            'num_filters': self.num_filters,
+            'value_head_hidden': self.value_head_hidden,
         }
+    
+    def get_num_parameters(self) -> int:
+        """Estimate number of parameters (approximate)."""
+        # Each ResBlock: 2 * (3*3 * F * F) = 18 * F^2
+        # Initial conv: 3*3 * 23 * F
+        # Value head: F + 64 * 256 + 256
+        f = self.num_filters
+        n = self.num_blocks
+        params = (
+            9 * 23 * f +           # Initial conv
+            n * 2 * 9 * f * f +    # Residual blocks
+            f +                     # Value conv
+            64 * self.value_head_hidden +  # FC1
+            self.value_head_hidden  # FC2
+        )
+        return int(params * 1.05)  # ~5% for biases/BN
 
 
 def get_model_config(model_type: str, **kwargs) -> ModelConfig:
