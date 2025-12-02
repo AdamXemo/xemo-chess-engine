@@ -17,20 +17,21 @@ from rich.progress import (
     MofNCompleteColumn,
 )
 from rich.console import Console
-from rich.live import Live
 from rich.table import Table
+from rich.panel import Panel
+from rich.live import Live
+from rich.layout import Layout
 from rich import box
 
 
 class TrainingProgress:
     """
-    Training progress manager with nested progress bars and live metrics.
+    Training progress manager with clean epoch/batch display.
     
-    Features:
-    - Nested epoch and batch progress bars
-    - Live metric updates (loss, MAE, etc.)
-    - Samples per second calculation
-    - Time remaining estimation
+    Shows:
+    - Epoch progress bar (overall training progress)
+    - Current epoch batch progress (resets each epoch)
+    - Live metrics (loss, lr)
     """
     
     def __init__(self, console: Optional[Console] = None):
@@ -42,10 +43,10 @@ class TrainingProgress:
         """
         self.console = console or Console()
         
-        # Create progress display
+        # Create progress display with cleaner columns
         self.progress = Progress(
             SpinnerColumn(),
-            TextColumn("[bold blue]{task.description}"),
+            TextColumn("[bold]{task.description}"),
             BarColumn(bar_width=40),
             TaskProgressColumn(),
             MofNCompleteColumn(),
@@ -53,15 +54,15 @@ class TrainingProgress:
             TextColumn("•"),
             TimeRemainingColumn(),
             console=self.console,
-            expand=False
+            expand=False,
+            transient=False,  # Keep completed bars visible
         )
         
         self.epoch_task = None
         self.batch_task = None
-        self.metrics_table = None
-        self.live = None
-        
         self.current_metrics = {}
+        self.current_epoch = 0
+        self.total_epochs = 0
     
     def start(self):
         """Start the progress display."""
@@ -82,27 +83,44 @@ class TrainingProgress:
         Returns:
             Task ID for the epoch bar
         """
+        self.total_epochs = total_epochs
         self.epoch_task = self.progress.add_task(
             f"[cyan]{description}",
             total=total_epochs
         )
         return self.epoch_task
     
-    def create_batch_bar(self, total_batches: int, description: str = "Batches"):
+    def create_batch_bar(self, total_batches: int, description: str = "Epoch"):
         """
-        Create batch-level progress bar (nested under epoch).
+        Create or reset batch-level progress bar.
+        
+        On first call, creates the bar. On subsequent calls, resets it.
         
         Args:
             total_batches: Total number of batches
-            description: Description text
+            description: Description text (e.g. "Epoch 1")
             
         Returns:
             Task ID for the batch bar
         """
-        self.batch_task = self.progress.add_task(
-            f"  [green]{description}",
-            total=total_batches
-        )
+        if self.batch_task is None:
+            # First time: create the bar
+            self.batch_task = self.progress.add_task(
+                f"  [green]{description}",
+                total=total_batches
+            )
+        else:
+            # Subsequent: reset and update description
+            self.progress.reset(self.batch_task, total=total_batches)
+            self.progress.update(
+                self.batch_task,
+                description=f"  [green]{description}",
+                completed=0
+            )
+        
+        # Clear metrics for new epoch
+        self.current_metrics = {}
+        
         return self.batch_task
     
     def update_epoch(self, advance: int = 1):
@@ -113,6 +131,7 @@ class TrainingProgress:
             advance: Number of epochs to advance
         """
         if self.epoch_task is not None:
+            self.current_epoch += advance
             self.progress.update(self.epoch_task, advance=advance)
     
     def update_batch(self, advance: int = 1):
@@ -125,34 +144,35 @@ class TrainingProgress:
         if self.batch_task is not None:
             self.progress.update(self.batch_task, advance=advance)
     
-    def reset_batch_bar(self, total_batches: int):
-        """
-        Reset batch progress bar for new epoch.
-        
-        Args:
-            total_batches: Total number of batches
-        """
-        if self.batch_task is not None:
-            self.progress.reset(self.batch_task, total=total_batches)
-    
     def update_metrics(self, metrics: Dict[str, Any]):
         """
-        Update live metrics display.
+        Update live metrics display in batch bar description.
         
         Args:
             metrics: Dictionary of metrics to display
         """
         self.current_metrics.update(metrics)
         
-        # Update batch task description with metrics
         if self.batch_task is not None:
-            metric_str = " | ".join([
-                f"{k}: {v:.4f}" if isinstance(v, float) else f"{k}: {v}"
-                for k, v in list(self.current_metrics.items())[:3]  # Show first 3 metrics
-            ])
+            # Format metrics nicely
+            metric_parts = []
+            for k, v in list(self.current_metrics.items())[:2]:  # Show top 2 metrics
+                if isinstance(v, float):
+                    if abs(v) < 0.001:
+                        metric_parts.append(f"{k}: {v:.2e}")
+                    else:
+                        metric_parts.append(f"{k}: {v:.4f}")
+                else:
+                    metric_parts.append(f"{k}: {v}")
+            
+            metric_str = " | ".join(metric_parts)
+            
+            # Get current epoch from description or use stored value
+            epoch_num = self.current_epoch + 1
+            
             self.progress.update(
                 self.batch_task,
-                description=f"  [green]Batches[/green] ({metric_str})"
+                description=f"  [green]Epoch {epoch_num}[/green] ({metric_str})"
             )
     
     def finish(self):
@@ -293,4 +313,3 @@ class SimpleProgress:
         """
         if self.task is not None:
             self.progress.update(self.task, description=description)
-

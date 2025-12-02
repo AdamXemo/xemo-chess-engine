@@ -264,7 +264,8 @@ class Trainer:
         self.model.train()
         self.metrics_tracker.reset()
         
-        # Create batch progress bar
+        # Update progress tracker's epoch counter and reset batch bar
+        progress.current_epoch = epoch
         progress.create_batch_bar(len(self.train_loader), f"Epoch {epoch + 1}")
         
         for batch_idx, (inputs, targets) in enumerate(self.train_loader):
