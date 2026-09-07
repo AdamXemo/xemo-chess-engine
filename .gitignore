@@ -1,0 +1,44 @@
+# Datasets. Multi-gigabyte, redistributable from the source, never in git.
+# "data/*" rather than "data/": git does not descend into an excluded
+# directory, so the negations below would not be reachable.
+data/*
+!data/raw/
+data/raw/*
+!data/raw/README.md
+
+# Training output. Anchored to the repository root so that research/models/,
+# which is documentation, is still tracked.
+/models/
+/checkpoints/
+/runs/
+/logs/
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.safetensors
+*.npz
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Notebooks: commit source, not output
+.ipynb_checkpoints/
+
+# Editors and OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Local environment
+.env
+.env.local
