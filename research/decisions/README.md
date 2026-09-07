@@ -16,7 +16,9 @@ back to it.
 
 | ID | Date | Decision | Status |
 |---|---|---|---|
-| — | — | — | none yet |
+| [0001](0001-stack-and-tooling.md) | 2026-09-07 | Python, PyTorch, and uv | accepted |
+| [0002](0002-browser-first-deployment.md) | 2026-09-07 | Browser-first deployment | accepted |
+| [0003](0003-alpha-beta-search.md) | 2026-09-07 | Alpha-beta search, in scope from the start | accepted |
 
 ## Template
 

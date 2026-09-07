@@ -6,9 +6,10 @@ updated: 2026-09-07
 # Research
 
 Working notes for a from-scratch chess engine project: dataset analysis, model
-architecture research, engine prior art, and the experiment log. The intended
-end products are a playable neural engine and a front end for it (web app or
-Telegram bot).
+architecture research, engine prior art, and the experiment log. The end
+product is a web app serving two opponents from the same data — a
+rating-conditioned policy network with no search, and an alpha-beta engine with
+a small evaluation network.
 
 This folder is text and small plots only. No raw data, no generated shards, no
 notebook output.
@@ -26,7 +27,7 @@ notebook output.
 | [models/](models/) | draft | Encoding, architectures, training plan |
 | [product/targets.md](product/targets.md) | draft | Deployment constraints |
 | [experiments/README.md](experiments/README.md) | current | Run log |
-| [decisions/README.md](decisions/README.md) | current | Decision records |
+| [decisions/README.md](decisions/README.md) | current | Decision records: stack, deployment, search |
 
 ## Conventions
 
@@ -46,6 +47,9 @@ notebook output.
 Prioritised. Items marked **open question** should be resolved before committing
 to a training pipeline, because the answer changes what the pipeline should be.
 
+Settled choices live in [decisions/](decisions/): PyTorch and uv, browser-first
+deployment, alpha-beta search in scope from the start.
+
 ### Training targets the data supports directly
 
 1. **Elo-conditioned policy network.** Position plus target rating to move,
@@ -61,6 +65,8 @@ to a training pipeline, because the answer changes what the pipeline should be.
 3. **Value head from the eval database.** Higher engine quality but a different
    position distribution, skewed toward endgames. Complementary to item 2, not a
    substitute. Filtering to depth 30 or more leaves roughly 2.5M positions.
+   Items 2 and 3 together are the training signal for the search engine's
+   evaluation network.
 4. **Soft policy targets from MultiPV.** The eval database averages 2.9 principal
    variations per analysis, giving a top-k move distribution instead of a
    one-hot label.

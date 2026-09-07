@@ -22,6 +22,8 @@ From [data/](../data/):
 ## To decide
 
 - Loss weighting between policy and value.
+- Whether the two networks train separately or share a trunk. They serve
+  different runtimes, so separately is the default assumption.
 - Whether the value head trains on game results, on engine evaluations, or on
   both with separate heads.
 - Centipawn-to-win-probability mapping, including how mate scores enter it.
